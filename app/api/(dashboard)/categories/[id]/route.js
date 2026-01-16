@@ -2,56 +2,44 @@ import { NextResponse } from "next/server";
 import { User } from "@/models/user.model.js";
 import { connectToDatabase } from "@/lib/db.js";
 import { Category } from "@/models/category.model.js";
+import mongoose from "mongoose";
 
-export const GET = async (request, { params }) => {
+export const PATCH = async (request, { params }) => {
     try {
-        await connectToDatabase();
+        const { searchParams } = new URL(request.url);
 
-        const { id } = await params;
+        const id = searchParams.get('userId');
+        const { id: categoryId } = await params;
+
         if (!id) {
             return NextResponse.json({
                 success: false,
-                message: "UserId Missing"
-            }, { status: 400 })
+                message: "UserID Missing"
+            }, { status: 400 });
         }
-        const user = await User.findById(id).select('-password');
-        if (!user) {
+        if (!categoryId) {
             return NextResponse.json({
                 success: false,
-                message: "User does not exist"
-            }, { status: 400 })
+                message: "CategoryId Missing"
+            }, { status: 400 });
         }
-
-        const categories = await Category.find({ user: id });
-
-        return NextResponse.json({
-            success: true,
-            message: "Categories Fetched",
-            data: {
-                categories
-            }
-        }, { status: 200 });
-
-
-    } catch (error) {
-        return NextResponse.json({
-            success: false,
-            message: error.message
-        }, { status: 500 })
-    }
-}
-
-export const POST = async (request, { params }) => {
-    try {
         await connectToDatabase();
-        const { id } = await params;
-        if (!id) {
+
+        if (!mongoose.Types.ObjectId.isValid(id) ||
+            !mongoose.Types.ObjectId.isValid(categoryId)) {
             return NextResponse.json({
                 success: false,
-                message: "UserId Missing"
-            }, { status: 400 })
+                message: "Invalid UserId or CategoryId"
+            }, { status: 400 });
         }
+
         const { title } = await request.json();
+        if (!title) {
+            return NextResponse.json({
+                success: false,
+                message: "Title is required"
+            }, { status: 400 });
+        }
 
         const user = await User.findById(id);
         if (!user) {
@@ -60,12 +48,71 @@ export const POST = async (request, { params }) => {
                 message: "User Not Found"
             }, { status: 400 })
         }
-        const newCategory = new Category({ title, user: id });
-        await newCategory.save();
+
+        const updatedCategory = await Category.findOneAndUpdate(
+            { _id: categoryId, user: id },
+            { title },
+            { new: true }
+        );
+
         return NextResponse.json({
             success: true,
-            message: " Category Created",
-            data: newCategory
+            message: "Category Updated",
+            data: updatedCategory
+        }, { status: 200 });
+    } catch (error) {
+        return NextResponse.json({
+            success: false,
+            message: error.message
+        }, { status: 500 })
+    }
+}
+
+export const DELETE = async (request, { params }) => {
+    try {
+
+        const { searchParams } = new URL(request.url);
+
+        const id = searchParams.get('userId');
+        const { id: categoryId } = await params;
+
+        if (!id) {
+            return NextResponse.json({
+                success: false,
+                message: "UserID Missing"
+            }, { status: 400 });
+        }
+        if (!categoryId) {
+            return NextResponse.json({
+                success: false,
+                message: "CategoryId Missing"
+            }, { status: 400 });
+        }
+        await connectToDatabase();
+        if (!mongoose.Types.ObjectId.isValid(id) ||
+            !mongoose.Types.ObjectId.isValid(categoryId)) {
+            return NextResponse.json({
+                success: false,
+                message: "InValid Id or Category Id"
+            }, { status: 400 })
+        }
+
+        const deletedCategory = await Category.findOneAndDelete({
+            _id: categoryId,
+            user: id
+        });
+
+
+        if (!deletedCategory) {
+            return NextResponse.json({
+                success: false,
+                message: "Category not found"
+            }, { status: 404 });
+        }
+        return NextResponse.json({
+            success: true,
+            message: "Category Deleted",
+            data: deletedCategory
         }, { status: 200 })
     }
     catch (error) {
@@ -75,5 +122,3 @@ export const POST = async (request, { params }) => {
         }, { status: 500 })
     }
 }
-
-
